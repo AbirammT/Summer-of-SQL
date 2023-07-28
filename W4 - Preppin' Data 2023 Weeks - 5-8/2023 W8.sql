@@ -1,0 +1,156 @@
+WITH COMBINED AS (
+SELECT
+    *, 
+    TO_DATE('01/01/2023') AS "File Date"
+FROM
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_01
+    UNION ALL
+SELECT
+    *,
+    TO_DATE('01/02/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_02
+    UNION ALL
+SELECT
+    *,
+    TO_DATE('01/03/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_03
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/04/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_04
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/05/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_05
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/06/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_06
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/07/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_07
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/08/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_08
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/09/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_09
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/10/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_10
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/11/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_11
+UNION ALL
+SELECT
+    *,
+    TO_DATE('01/12/2023') AS "File Date"
+FROM 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_12
+)
+,
+FILTERED AS 
+(
+SELECT
+    *
+FROM
+    COMBINED
+WHERE
+    "MARKET_CAP" != 'n/a'
+)
+,
+NUMBERS AS
+(
+SELECT 
+    *,
+    TRY_CAST(REPLACE("PURCHASE_PRICE", '$', '') AS DECIMAL(10, 2)) AS "PP_TEST",
+    TRY_CAST(REPLACE(REPLACE(REPLACE("MARKET_CAP", '$', ''),'M',''),'B','') AS DECIMAL(10, 2)) AS "MP_TEST"
+FROM
+    FILTERED
+)
+,
+GROUPINGS AS (
+SELECT
+    *,
+    CASE
+        WHEN PP_TEST >= 75000 then 'Very High'
+        WHEN PP_TEST >= 50000 and PP_TEST < 75000 then 'High'
+        WHEN PP_TEST >= 25000 and PP_TEST < 50000 then 'Medium'
+        WHEN PP_TEST >= 0 and PP_TEST < 25000 then 'Low'
+        END AS "PP_Groupings",
+    CASE
+        WHEN PP_TEST >= 75000 then 4
+        WHEN PP_TEST >= 50000 and PP_TEST < 75000 then 3
+        WHEN PP_TEST >= 25000 and PP_TEST < 50000 then 2
+        WHEN PP_TEST >= 0 and PP_TEST < 25000 then 1
+        END AS "PP_Groupings_RANK",
+    CASE    
+        WHEN MP_TEST <= 100 and RIGHT("MARKET_CAP",1) = 'M' then 'Small'
+        WHEN MP_TEST > 100 and RIGHT("MARKET_CAP",1) = 'M' then 'Medium'
+        WHEN MP_TEST > 100 and RIGHT("MARKET_CAP",1) = 'B' then 'Huge'
+        ELSE 'Large'
+        END AS "MP_Groupings",
+    CASE    
+        WHEN MP_TEST <= 100 and RIGHT("MARKET_CAP",1) = 'M' then 1
+        WHEN MP_TEST > 100 and RIGHT("MARKET_CAP",1) = 'M' then 2
+        WHEN MP_TEST > 100 and RIGHT("MARKET_CAP",1) = 'B' then 4
+        ELSE 3
+        END AS "MP_Groupings_RANK",
+    CASE
+        WHEN RIGHT("MARKET_CAP",1) = 'M' THEN MP_TEST * 1000000
+        WHEN RIGHT("MARKET_CAP",1) = 'B' THEN MP_TEST * 1000000000
+        END AS "MARKET_CAPITALISATION"
+FROM
+    NUMBERS
+)
+,
+RANKINGS AS 
+(
+SELECT
+    *,
+    RANK() OVER (PARTITION BY "File Date", "PP_Groupings_RANK", "MP_Groupings_RANK" ORDER BY "PP_TEST" DESC) AS "RANK"
+FROM
+    GROUPINGS
+ORDER BY
+    "File Date" ASC, "PP_Groupings" ASC, "MP_Groupings" ASC, "RANK" ASC
+)
+
+SELECT
+    "MP_Groupings" AS "Market Capitalisation Categories",
+    "PP_Groupings" AS "Purchase Price Categories",
+    "File Date",
+    Ticker,
+    Sector,
+    Market,
+    STOCK_NAME AS "Stock Name",
+    MARKET_CAPITALISATION AS "Market Capitalisation",
+    PP_TEST AS "Purchase Price",
+    RANK AS "Rank"
+FROM
+    RANKINGS
+WHERE
+    RANK <= 5
+    
